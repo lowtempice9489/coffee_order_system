@@ -1,0 +1,13 @@
+spring:
+  application:
+    name: coffee_order_system
+
+  datasource:
+    url: jdbc:mysql://localhost:3306/coffee_order_system?serverTimezone=Asia/Seoul&characterEncoding=UTF-8
+    username: root
+    password: ${DB_PASSWORD}
+
+  jpa:
+    hibernate:
+      ddl-auto: update
+    open-in-view: false
