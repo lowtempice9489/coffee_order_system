@@ -7,6 +7,11 @@ import com.example.coffee_order_system.user.UserRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.data.domain.PageRequest;
+
+import java.time.LocalDate;
+import java.time.LocalDateTime;
+import java.util.List;
 
 @Service
 @RequiredArgsConstructor
@@ -15,6 +20,7 @@ public class OrderService {
     private final OrderRepository orderRepository;
     private final UserRepository userRepository;
     private final MenuRepository menuRepository;
+    private final OrderOutboxRepository orderOutboxRepository;
 
     @Transactional
     public OrderResponse order(Long userId, OrderRequest request) {
@@ -46,6 +52,27 @@ public class OrderService {
 
         Order savedOrder = orderRepository.save(order);
 
+        OrderOutbox outbox = new OrderOutbox(
+                savedOrder.getId(),
+                menu.getId(),
+                request.quantity(),
+                paymentAmount
+        );
+
+        orderOutboxRepository.save(outbox);
+
         return OrderResponse.from(savedOrder);
+    }
+
+    @Transactional(readOnly = true)
+    public List<PopularMenuResponse> getPopularMenus() {
+        LocalDateTime startDateTime = LocalDate.now()
+                .minusDays(6)
+                .atStartOfDay();
+
+        return orderRepository.findPopularMenus(
+                startDateTime,
+                PageRequest.of(0, 3)
+        );
     }
 }
