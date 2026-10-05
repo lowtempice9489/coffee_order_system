@@ -2,8 +2,7 @@ package com.example.coffee_order_system.order;
 
 import com.example.coffee_order_system.menu.Menu;
 import com.example.coffee_order_system.menu.MenuRepository;
-import com.example.coffee_order_system.user.User;
-import com.example.coffee_order_system.user.UserRepository;
+import com.example.coffee_order_system.user.*;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -21,6 +20,7 @@ public class OrderService {
     private final UserRepository userRepository;
     private final MenuRepository menuRepository;
     private final OrderOutboxRepository orderOutboxRepository;
+    private final PointHistoryRepository pointHistoryRepository;
 
     @Transactional
     public OrderResponse order(Long userId, OrderRequest request) {
@@ -42,6 +42,16 @@ public class OrderService {
         if (updatedRows == 0) {
             throw new IllegalStateException("포인트가 부족합니다.");
         }
+
+        int balanceAfter = userRepository.findPointById(userId);
+
+        PointHistory pointHistory = new PointHistory(
+                user,
+                PointHistoryType.USE,
+                paymentAmount,
+                balanceAfter
+        );
+        pointHistoryRepository.save(pointHistory);
 
         Order order = new Order(
                 user,

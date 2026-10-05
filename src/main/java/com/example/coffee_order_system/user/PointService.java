@@ -1,6 +1,8 @@
 package com.example.coffee_order_system.user;
 
 import lombok.RequiredArgsConstructor;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -9,6 +11,7 @@ import org.springframework.transaction.annotation.Transactional;
 public class PointService {
 
     private final UserRepository userRepository;
+    private final PointHistoryRepository pointHistoryRepository;
 
     @Transactional
     public int charge(Long userId, int amount) {
@@ -21,6 +24,32 @@ public class PointService {
 
         user.addPoint(amount);
 
+        PointHistory history = new PointHistory(
+                user,
+                PointHistoryType.CHARGE,
+                amount,
+                user.getPoint()
+        );
+        pointHistoryRepository.save(history);
+
         return user.getPoint();
+    }
+
+    @Transactional(readOnly = true)
+    public Page<PointHistoryResponse> getHistories(
+            Long userId,
+            int page,
+            int size
+    ) {
+        if (!userRepository.existsById(userId)) {
+            throw new IllegalArgumentException("사용자를 찾을 수 없습니다.");
+        }
+
+        return pointHistoryRepository
+                .findByUserIdOrderByCreatedAtDescIdDesc(
+                        userId,
+                        PageRequest.of(page, size)
+                )
+                .map(PointHistoryResponse::from);
     }
 }

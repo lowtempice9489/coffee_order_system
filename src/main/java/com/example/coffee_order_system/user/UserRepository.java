@@ -9,13 +9,20 @@ public interface UserRepository extends JpaRepository<User, Long> {
 
     @Modifying
     @Query("""
-            UPDATE User u
-            SET u.point = u.point - :amount
-            WHERE u.id = :userId
-              AND u.point >= :amount
-            """)
+        UPDATE User u
+        SET u.point = u.point - :amount
+        WHERE u.id = :userId
+          AND u.point >= :amount
+        """)
     int deductPointIfEnough(
             @Param("userId") Long userId,
             @Param("amount") int amount
     );
+
+    @Query("""
+        SELECT u.point
+        FROM User u
+        WHERE u.id = :userId
+        """)
+    int findPointById(@Param("userId") Long userId);
 }

@@ -2,12 +2,12 @@ package com.example.coffee_order_system.order;
 
 import com.example.coffee_order_system.menu.Menu;
 import com.example.coffee_order_system.menu.MenuRepository;
-import com.example.coffee_order_system.user.User;
-import com.example.coffee_order_system.user.UserRepository;
+import com.example.coffee_order_system.user.*;
 import jakarta.persistence.EntityManager;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.sql.Timestamp;
@@ -45,6 +45,9 @@ class OrderServiceIntegrationTest {
     @Autowired
     private EntityManager entityManager;
 
+    @Autowired
+    private PointHistoryRepository pointHistoryRepository;
+
     @Test
     @Transactional
     void 주문에_성공하면_포인트_주문_Outbox가_함께_반영된다() {
@@ -75,6 +78,16 @@ class OrderServiceIntegrationTest {
         ).anyMatch(outbox ->
                 outbox.getOrderId().equals(response.orderId())
         );
+
+        List<PointHistory> histories = pointHistoryRepository.findAll();
+
+        assertThat(histories)
+                .anySatisfy(history -> {
+                    assertThat(history.getUser().getId()).isEqualTo(user.getId());
+                    assertThat(history.getType()).isEqualTo(PointHistoryType.USE);
+                    assertThat(history.getAmount()).isEqualTo(4_500);
+                    assertThat(history.getBalanceAfter()).isEqualTo(5_500);
+                });
     }
 
     @Test
@@ -90,6 +103,7 @@ class OrderServiceIntegrationTest {
 
         long orderCountBefore = orderRepository.count();
         long outboxCountBefore = orderOutboxRepository.count();
+        long pointHistoryCountBefore = pointHistoryRepository.count();
 
         assertThatThrownBy(() ->
                 orderService.order(user.getId(), request)
@@ -104,6 +118,7 @@ class OrderServiceIntegrationTest {
         assertThat(unchangedUser.getPoint()).isEqualTo(1_000);
         assertThat(orderRepository.count()).isEqualTo(orderCountBefore);
         assertThat(orderOutboxRepository.count()).isEqualTo(outboxCountBefore);
+        assertThat(pointHistoryRepository.count()).isEqualTo(pointHistoryCountBefore);
     }
 
     @Test
@@ -162,6 +177,26 @@ class OrderServiceIntegrationTest {
             assertThat(successCount).isEqualTo(2);
             assertThat(updatedUser.getPoint()).isEqualTo(1_000);
 
+            List<PointHistory> useHistories =
+                    pointHistoryRepository
+                            .findByUserIdOrderByCreatedAtDescIdDesc(
+                                    user.getId(),
+                                    PageRequest.of(0, 10)
+                            )
+                            .getContent();
+
+            assertThat(useHistories).hasSize(2);
+
+            assertThat(useHistories)
+                    .allSatisfy(history -> {
+                        assertThat(history.getType()).isEqualTo(PointHistoryType.USE);
+                        assertThat(history.getAmount()).isEqualTo(4_500);
+                    });
+
+            assertThat(useHistories)
+                    .extracting(PointHistory::getBalanceAfter)
+                    .containsExactlyInAnyOrder(5_500, 1_000);
+
         } finally {
             executorService.shutdown();
         }
@@ -172,6 +207,7 @@ class OrderServiceIntegrationTest {
     void 인기메뉴는_최근_7일_밖의_주문을_집계하지_않는다() {
         orderOutboxRepository.deleteAll();
         orderRepository.deleteAll();
+        pointHistoryRepository.deleteAll();
         menuRepository.deleteAll();
         userRepository.deleteAll();
 
@@ -244,6 +280,7 @@ class OrderServiceIntegrationTest {
     void 인기메뉴_주문횟수가_같으면_최근_주문이_있는_메뉴가_먼저_조회된다() {
         orderOutboxRepository.deleteAll();
         orderRepository.deleteAll();
+        pointHistoryRepository.deleteAll();
         menuRepository.deleteAll();
         userRepository.deleteAll();
 
@@ -319,6 +356,7 @@ class OrderServiceIntegrationTest {
     void 인기메뉴_주문횟수와_최근주문시각이_같으면_menuId가_작은_메뉴가_먼저_조회된다() {
         orderOutboxRepository.deleteAll();
         orderRepository.deleteAll();
+        pointHistoryRepository.deleteAll();
         menuRepository.deleteAll();
         userRepository.deleteAll();
 
